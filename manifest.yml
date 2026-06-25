@@ -1,0 +1,16 @@
+applications:
+  - name: ganesan-flask-hello-768439a0
+    memory: 256M
+    disk_quota: 512M
+    instances: 1
+    docker:
+      image: ghcr.io/ganesanja/flask-hello-cf:latest
+    health-check-type: port
+# applications:
+#   - name: ganesan-flask-hello-768439a0
+#     memory: 256M
+#     disk_quota: 512M
+#     instances: 1
+#     buildpacks:
+#       - python_buildpack
+#     command: gunicorn --bind 0.0.0.0:$PORT app:app
