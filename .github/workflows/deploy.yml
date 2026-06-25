@@ -1,13 +1,43 @@
-name: Deploy Flask App to SAP BTP Cloud Foundry
+name: Deploy Docker Flask App to SAP BTP Cloud Foundry
 
 on:
   push:
     branches:
       - main
 
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: docker.io/ganesanja/flask-hello-cf
+
 jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
   deploy:
     runs-on: ubuntu-latest
+    needs: build
 
     steps:
       - name: Checkout source code
@@ -15,12 +45,17 @@ jobs:
 
       - name: Install Cloud Foundry CLI
         run: |
-          curl -L "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=8" -o cf-cli.tgz
+          CF_VERSION="8.18.3"
+          curl -L \
+            -o cf-cli.tgz \
+            "https://github.com/cloudfoundry/cli/releases/download/v${CF_VERSION}/cf8-cli_${CF_VERSION}_linux_x86-64.tgz"
+
           tar -xzf cf-cli.tgz
           sudo mv cf8 /usr/local/bin/cf
+          chmod +x /usr/local/bin/cf
           cf --version
 
-      - name: Login and deploy to SAP BTP
+      - name: Login and deploy Docker image to SAP BTP
         env:
           CF_API: ${{ secrets.CF_API }}
           CF_USERNAME: ${{ secrets.CF_USERNAME }}
@@ -31,4 +66,9 @@ jobs:
           cf api "$CF_API"
           cf auth "$CF_USERNAME" "$CF_PASSWORD"
           cf target -o "$CF_ORG" -s "$CF_SPACE"
-          cf push
+
+          cf push ganesan-flask-hello-768439a0 \
+            --docker-image "${{ env.IMAGE_NAME }}:${GITHUB_SHA}" \
+            -m 256M \
+            -k 512M \
+            -i 1
